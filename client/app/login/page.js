@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation'; // Use 'react-router-dom' if you are using standard React
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 export default function LoginPage() {
@@ -14,16 +14,12 @@ export default function LoginPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // 1. Directly read input values from the DOM to catch Safari/mobile autofill
+    // 1. Get values directly from the HTML form elements (Fixes Safari Autofill)
     const form = e.currentTarget;
-    const emailInput = form.elements.namedItem('email');
-    const passwordInput = form.elements.namedItem('password');
+    const emailVal = form.elements['email']?.value || email;
+    const passwordVal = form.elements['password']?.value || password;
 
-    const submittedEmail = emailInput?.value || email;
-    const submittedPassword = passwordInput?.value || password;
-
-    // 2. Validate input presence
-    if (!submittedEmail || !submittedPassword) {
+    if (!emailVal || !passwordVal) {
       setError('Please provide email and password');
       return;
     }
@@ -31,29 +27,39 @@ export default function LoginPage() {
     setError('');
     setIsLoading(true);
 
+    // 2. Fallback backend URL if env variable is not loaded in Vercel
+    const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'https://cas-ts71.onrender.com';
+
     try {
-      // 3. Make login request to backend
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/login`, {
+      const res = await fetch(`${BASE_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          email: submittedEmail,
-          password: submittedPassword,
+          email: emailVal.trim(),
+          password: passwordVal,
         }),
       });
 
-      const data = await res.json();
+      // 3. Safe response parsing to prevent Safari "String pattern" crash
+      const responseText = await res.text();
+      let data;
+      
+      try {
+        data = JSON.parse(responseText);
+      } catch (jsonErr) {
+        throw new Error('Server returned an invalid response. Please verify backend status.');
+      }
 
       if (!res.ok) {
         throw new Error(data.message || 'Login failed');
       }
 
-      // 4. Save authentication token and redirect
+      // 4. Save token and redirect
       if (data.token) {
         localStorage.setItem('token', data.token);
-        router.push('/dashboard'); // Change to your desired landing path
+        router.push('/dashboard'); 
       }
     } catch (err) {
       setError(err.message || 'Failed to sign in');
@@ -114,7 +120,7 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-gray-800"
-            />
+              />
           </div>
 
           <button
@@ -126,7 +132,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* Register Redirect */}
+        {/* Register Link */}
         <div className="mt-6 text-center text-sm text-gray-600">
           Don’t have an account?{' '}
           <Link href="/register" className="text-blue-600 hover:underline font-medium">
