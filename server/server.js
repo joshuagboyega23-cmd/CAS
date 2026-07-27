@@ -12,7 +12,7 @@ const app = express();
 
 // Body Parser & CORS
 app.use(express.json());
-app.use(cors({ origin: process.env.CLIENT_URL, credentials: true }));
+app.use(cors());
 
 // Health Check Route
 app.get('/api/v1/health', (req, res) => {
