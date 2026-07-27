@@ -1,106 +1,139 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '../../context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation'; // Use 'react-router-dom' if you are using standard React
 import Link from 'next/link';
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  // Supports loginUser or login based on your AuthContext definition
-  const { loginUser, login } = useAuth();
-  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 1. Directly read input values from the DOM to catch Safari/mobile autofill
+    const form = e.currentTarget;
+    const emailInput = form.elements.namedItem('email');
+    const passwordInput = form.elements.namedItem('password');
+
+    const submittedEmail = emailInput?.value || email;
+    const submittedPassword = passwordInput?.value || password;
+
+    // 2. Validate input presence
+    if (!submittedEmail || !submittedPassword) {
+      setError('Please provide email and password');
+      return;
+    }
+
     setError('');
-    setLoading(true);
+    setIsLoading(true);
 
     try {
-      const authFn = loginUser || login;
-      const res = await authFn({ email, password });
-      
-      const user = res?.data?.user || res?.user || res;
+      // 3. Make login request to backend
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: submittedEmail,
+          password: submittedPassword,
+        }),
+      });
 
-      // Redirect based on user role[span_2](start_span)[span_2](end_span)
-      if (user?.role === 'admin') {
-        router.push('/dashboard/admin');
-      } else if (user?.role === 'doctor') {
-        router.push('/doctor');
-      } else {
-        router.push('/dashboard');
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Login failed');
+      }
+
+      // 4. Save authentication token and redirect
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        router.push('/dashboard'); // Change to your desired landing path
       }
     } catch (err) {
-      setError(err?.response?.data?.message || err?.message || 'Failed to login. Please check your credentials.');
+      setError(err.message || 'Failed to sign in');
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 px-4">
-      <div className="max-w-md w-full bg-white p-8 rounded-xl shadow-md border border-slate-200">
-        <h2 className="text-2xl font-bold text-center text-slate-800 mb-2">
-          Welcome Back
-        </h2>
-        <p className="text-sm text-center text-slate-500 mb-6">
-          Log in to your Clinic Appointment System account
-        </p>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 py-12">
+      <div className="max-w-md w-full bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
+        
+        {/* Header */}
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold text-gray-800">Welcome Back</h2>
+          <p className="text-sm text-gray-500 mt-1">
+            Log in to your Clinic Appointment System account
+          </p>
+        </div>
 
+        {/* Error Notification */}
         {error && (
-          <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-md border border-red-200">
+          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm text-center font-medium">
             {error}
           </div>
         )}
 
+        {/* Login Form */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
               Email Address
             </label>
             <input
+              id="email"
+              name="email"
               type="email"
+              autoComplete="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
-              placeholder="user@example.com"
+              placeholder="you@example.com"
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-gray-800"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
               Password
             </label>
             <input
+              id="password"
+              name="password"
               type="password"
+              autoComplete="current-password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900"
               placeholder="••••••••"
+              className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition text-gray-800"
             />
           </div>
 
           <button
             type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 rounded-lg transition-colors disabled:opacity-50"
+            disabled={isLoading}
+            className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg shadow-sm transition duration-200 disabled:opacity-50 mt-2"
           >
-            {loading ? 'Logging in...' : 'Sign In'}
+            {isLoading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-slate-600">
+        {/* Register Redirect */}
+        <div className="mt-6 text-center text-sm text-gray-600">
           Don’t have an account?{' '}
-          <Link href="/register" className="text-blue-600 font-medium hover:underline">
+          <Link href="/register" className="text-blue-600 hover:underline font-medium">
             Register here
           </Link>
-        </p>
+        </div>
+
       </div>
     </div>
   );
