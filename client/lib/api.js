@@ -1,15 +1,28 @@
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://cas-ts71.onrender.com').replace(/\/$/, '') + '/api/v1';
+let baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://cas-ts71.onrender.com').replace(/\/$/, '');
+
+// Ensure /api/v1 is appended exactly once
+if (!baseUrl.endsWith('/api/v1')) {
+  baseUrl += '/api/v1';
+}
+
+const API_URL = baseUrl;
 
 export async function fetchAPI(endpoint, options = {}) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   const headers = {
     'Content-Type': 'application/json',
-    ...(token && { Authorization: Bearer ${token} }),
     ...options.headers,
   };
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  if (token) {
+    headers['Authorization'] = Bearer ${token};
+  }
+
+  // Ensure endpoint starts with a slash
+  const formattedEndpoint = endpoint.startsWith('/') ? endpoint : /${endpoint};
+
+  const response = await fetch(`${API_URL}${formattedEndpoint}`, {
     ...options,
     headers,
   });
@@ -19,7 +32,7 @@ export async function fetchAPI(endpoint, options = {}) {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new Error(`Server returned invalid response. Check backend status.`);
+    throw new Error('Server returned an invalid response. Please verify backend status.');
   }
 
   if (!response.ok) {
@@ -29,5 +42,4 @@ export async function fetchAPI(endpoint, options = {}) {
   return data;
 }
 
-// Export as default as well so both import styles work everywhere
 export default fetchAPI;
