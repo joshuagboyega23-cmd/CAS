@@ -69,7 +69,7 @@ export default function BookAppointmentPage() {
     setSubmitting(true);
 
     try {
-      await fetchAPI('/appointments', {
+      const res = await fetchAPI('/appointments', {
         method: 'POST',
         body: JSON.stringify({
           doctorId,
@@ -80,7 +80,18 @@ export default function BookAppointmentPage() {
         }),
       });
 
-      router.push('/patient');
+      // Check if Paystack payment URL exists in response
+      const paystackUrl =
+        res?.authorization_url ||
+        res?.paymentUrl ||
+        res?.data?.authorization_url ||
+        res?.data?.paymentUrl;
+
+      if (paystackUrl) {
+        window.location.href = paystackUrl; // Redirects to Paystack
+      } else {
+        router.push('/dashboard'); // Fallback to dashboard
+      }
     } catch (err) {
       setError(err.message || 'Booking failed. Please try again.');
     } finally {
