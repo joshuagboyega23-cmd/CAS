@@ -41,7 +41,7 @@ export default function LoginPage() {
         if (data.user) {
           localStorage.setItem('user', JSON.stringify(data.user));
         }
-        router.push('/');
+        router.push('/dashboard');
       }
     } catch (err) {
       setError(err.message || 'Failed to sign in. Please check your credentials.');
