@@ -1,11 +1,7 @@
-let baseUrl = (process.env.NEXT_PUBLIC_API_URL || 'https://cas-ts71.onrender.com').replace(/\/$/, '');
-
-// Ensure /api/v1 is appended exactly once
-if (!baseUrl.endsWith('/api/v1')) {
-  baseUrl += '/api/v1';
-}
-
-const API_URL = baseUrl;
+// Strip any trailing slashes or existing /api/v1 from the base domain
+const BASE_DOMAIN = (process.env.NEXT_PUBLIC_API_URL || 'https://cas-ts71.onrender.com')
+  .replace(/\/api\/v1\/?$/, '')
+  .replace(/\/$/, '');
 
 export async function fetchAPI(endpoint, options = {}) {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -19,10 +15,13 @@ export async function fetchAPI(endpoint, options = {}) {
     headers['Authorization'] = Bearer ${token};
   }
 
-  // Ensure endpoint starts with a slash
-  const formattedEndpoint = endpoint.startsWith('/') ? endpoint : /${endpoint};
+  // Strip any leading slashes or duplicate /api/v1 from the endpoint string
+  const cleanEndpoint = endpoint.replace(/^\/?(api\/v1)?\/?/, '');
+  
+  // Construct the exact URL cleanly: https://cas-ts71.onrender.com/api/v1/auth/login
+  const fullUrl = ${BASE_DOMAIN}/api/v1/${cleanEndpoint};
 
-  const response = await fetch(`${API_URL}${formattedEndpoint}`, {
+  const response = await fetch(fullUrl, {
     ...options,
     headers,
   });
