@@ -12,14 +12,14 @@ export async function fetchAPI(endpoint, options = {}) {
   };
 
   if (token) {
-    headers['Authorization'] = Bearer ${token};
+    headers['Authorization'] = `Bearer ${token}`;
   }
 
   // Strip any leading slashes or duplicate /api/v1 from the endpoint string
   const cleanEndpoint = endpoint.replace(/^\/?(api\/v1)?\/?/, '');
   
   // Construct the exact URL cleanly: https://cas-ts71.onrender.com/api/v1/auth/login
-  const fullUrl = ${BASE_DOMAIN}/api/v1/${cleanEndpoint};
+  const fullUrl = `${BASE_DOMAIN}/api/v1/${cleanEndpoint}`;
 
   const response = await fetch(fullUrl, {
     ...options,
