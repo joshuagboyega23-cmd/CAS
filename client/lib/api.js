@@ -28,7 +28,7 @@ export const fetchAPI = async (endpoint, options = {}) => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
-      throw new Error(data.message  data.error  `Request failed with status ${response.status}`);
+      throw new Error(data.message || data.error || `Request failed with status ${response.status}`);
     }
 
     return data;
