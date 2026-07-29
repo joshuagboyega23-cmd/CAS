@@ -1,8 +1,15 @@
 const Appointment = require('../models/Appointment');
 const Doctor = require('../models/Doctor');
 const User = require('../models/User');
-const sendEmail = require('../utils/sendEmail');
 const axios = require('axios');
+
+// Safe optional require for sendEmail module
+let sendEmail = null;
+try {
+  sendEmail = require('../utils/sendEmail');
+} catch (e) {
+  console.log('sendEmail module not found, continuing without email notifications.');
+}
 
 // @desc    Create new appointment & initialize Paystack
 // @route   POST /api/v1/appointments
@@ -26,17 +33,17 @@ exports.createAppointment = async (req, res) => {
       status: 'pending',
     });
 
-    // 2. Safely attempt Email Notification (Failures won't crash the request)
-    try {
-      if (typeof sendEmail === 'function' && req.user?.email) {
+    // 2. Safely attempt Email Notification
+    if (sendEmail && typeof sendEmail === 'function' && req.user?.email) {
+      try {
         await sendEmail({
           email: req.user.email,
           subject: 'Appointment Booking Confirmation',
           message: `Your appointment for ${date} at ${timeSlot} has been created.`,
         });
+      } catch (emailErr) {
+        console.error('Email sending failed (non-blocking):', emailErr.message);
       }
-    } catch (emailErr) {
-      console.error('Email sending failed (non-blocking):', emailErr.message);
     }
 
     // 3. Safely initialize Paystack Payment
@@ -115,6 +122,7 @@ exports.getAppointments = async (req, res) => {
     res.status(200).json({ success: true, appointments });
   } catch (error) {
     console.error('Get appointments error:', error);
-    res.status(500).json({ message: error.message || 'Server error fetching appointments' });
+    res.
+    status(500).json({ message: error.message || 'Server error fetching appointments' });
   }
 };

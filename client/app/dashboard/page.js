@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import fetchAPI from '../../lib/api';
+import fetchAPI from '@/lib/api';
 import Link from 'next/link';
 
 export default function DashboardPage() {
