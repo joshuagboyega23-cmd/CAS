@@ -1,46 +1,40 @@
-// Strip any trailing slashes or existing /api/v1 from the base domain
-const BASE_DOMAIN = (process.env.NEXT_PUBLIC_API_URL || 'https://cas-ts71.onrender.com')
-  .replace(/\/api\/v1\/?$/, '')
-  .replace(/\/$/, '');
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-export async function fetchAPI(endpoint = '', options = {}) {
+const fetchAPI = async (endpoint, options = {}) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   const headers = {
     'Content-Type': 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...options.headers,
   };
 
-  if (token) {
-    // Backticks around Bearer ${token} ensure string formatting
-    headers['Authorization'] = `Bearer ${token}`;
-  }
-
-  // Safely clean up leading slashes or duplicate api/v1
-  const safeEndpoint = String(endpoint || '');
-  const cleanEndpoint = safeEndpoint.replace(/^\/?(api\/v1)?\/?/, '');
-
-  // Construct the exact URL cleanly
-  const fullUrl = `${BASE_DOMAIN}/api/v1/${cleanEndpoint}`;
-
-  const response = await fetch(fullUrl, {
-    ...options,
-    headers,
-  });
-
-  const text = await response.text();
-  let data;
   try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error('Server returned an invalid response. Please verify backend status.');
-  }
+    const response = await fetch(`${API_URL}${endpoint}`, {
+      ...options,
+      headers,
+    });
 
-  if (!response.ok) {
-    throw new Error(data.message || 'An error occurred while fetching data.');
-  }
+    const text = await response.text();
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      throw new Error(`Server returned status ${response.status}. Please check backend logs.`);
+    }
 
-  return data;
-}
+    if (!response.ok) {
+      if (response.status === 401 && typeof window !== 'undefined') {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
+      throw new Error(data.message || data.error || `Request failed with status ${response.status}`);
+    }
+
+    return data;
+  } catch (error) {
+    throw new Error(error.message || 'Network error. Please check your backend connection.');
+  }
+};
 
 export default fetchAPI;

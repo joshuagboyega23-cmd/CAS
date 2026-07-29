@@ -1,139 +1,120 @@
 const Appointment = require('../models/Appointment');
 const Doctor = require('../models/Doctor');
+const User = require('../models/User');
 const sendEmail = require('../utils/sendEmail');
+const axios = require('axios');
 
-// @desc    Book a new appointment
+// @desc    Create new appointment & initialize Paystack
 // @route   POST /api/v1/appointments
-// @access  Private (Patient)
-exports.bookAppointment = async (req, res) => {
+// @access  Private
+exports.createAppointment = async (req, res) => {
   try {
-    const { doctorId, date, timeSlot, reason } = req.body;
+    const { doctorId, date, timeSlot, type, reason } = req.body;
 
-    const doctor = await Doctor.findById(doctorId);
-    if (!doctor) {
-      return res.status(404).json({ success: false, message: 'Doctor not found' });
+    if (!doctorId || !date || !timeSlot) {
+      return res.status(400).json({ message: 'Please provide doctorId, date, and timeSlot' });
     }
 
+    // 1. Save appointment in MongoDB
     const appointment = await Appointment.create({
       patient: req.user._id,
       doctor: doctorId,
       date,
       timeSlot,
-      reason,
+      type: type || 'consultation',
+      reason: reason || '',
+      status: 'pending',
     });
 
-    // Send confirmation email to patient
+    // 2. Safely attempt Email Notification (Failures won't crash the request)
     try {
-      await sendEmail({
-        email: req.user.email,
-        subject: 'Appointment Booking Confirmation - Clinic Care',
-        html: `
-          <h2>Appointment Confirmation 🏥</h2>
-          <p>Hello <strong>${req.user.name}</strong>,</p>
-          <p>Your appointment has been successfully scheduled!</p>
-          <hr />
-          <p>📅 <strong>Date:</strong> ${new Date(date).toLocaleDateString()}</p>
-          <p>⏰ <strong>Time Slot:</strong> ${timeSlot}</p>
-          <p>📝 <strong>Reason:</strong> ${reason}</p>
-          <hr />
-          <p>Please log in to your dashboard to complete payment if applicable.</p>
-        `,
-      });
+      if (typeof sendEmail === 'function' && req.user?.email) {
+        await sendEmail({
+          email: req.user.email,
+          subject: 'Appointment Booking Confirmation',
+          message: `Your appointment for ${date} at ${timeSlot} has been created.`,
+        });
+      }
     } catch (emailErr) {
-      console.error('Email sending failed:', emailErr.message);
+      console.error('Email sending failed (non-blocking):', emailErr.message);
     }
 
-    res.status(201).json({
+    // 3. Safely initialize Paystack Payment
+    let authorization_url = null;
+
+    if (process.env.PAYSTACK_SECRET_KEY) {
+      try {
+        const paystackRes = await axios.post(
+          'https://api.paystack.co/transaction/initialize',
+          {
+            email: req.user.email,
+            amount: 500000, // 5000 NGN in kobo
+            callback_url: `${process.env.CLIENT_URL || 'https://cas-ebon.vercel.app'}/dashboard`,
+            metadata: {
+              appointmentId: appointment._id.toString(),
+            },
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY.trim()}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (paystackRes.data?.data?.authorization_url) {
+          authorization_url = paystackRes.data.data.authorization_url;
+        }
+      } catch (paystackErr) {
+        console.error('Paystack initialization warning:', paystackErr?.response?.data || paystackErr.message);
+      }
+    }
+
+    return res.status(201).json({
       success: true,
-      data: appointment,
+      appointment,
+      authorization_url,
+      message: authorization_url
+        ? 'Appointment created. Redirecting to payment...'
+        : 'Appointment booked successfully!',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Create appointment error:', error);
+    res.status(500).json({ message: error.message || 'Server error creating appointment' });
   }
 };
 
-// @desc    Get logged-in user appointments
-// @route   GET /api/v1/appointments/my
+// @desc    Get appointments for logged in user
+// @route   GET /api/v1/appointments
 // @access  Private
-exports.getMyAppointments = async (req, res) => {
+exports.getAppointments = async (req, res) => {
   try {
-    let appointments;
+    let appointments = [];
 
-    if (req.user.role === 'doctor') {
+    if (req.user.role === 'patient') {
+      appointments = await Appointment.find({ patient: req.user._id })
+        .populate('doctor')
+        .populate('patient', 'name email')
+        .sort({ createdAt: -1 });
+    } else if (req.user.role === 'doctor') {
       const doctorProfile = await Doctor.findOne({ user: req.user._id });
       if (!doctorProfile) {
-        return res.status(200).json({ success: true, data: [] });
+        return res.status(200).json({ success: true, appointments: [] });
       }
       appointments = await Appointment.find({ doctor: doctorProfile._id })
-        .populate('patient', 'name email phone')
-        .sort({ date: -1 });
+        .populate('patient', 'name email')
+        .populate('doctor')
+        .sort({ createdAt: -1 });
     } else {
-      appointments = await Appointment.find({ patient: req.user._id })
-        .populate({
-          path: 'doctor',
-          populate: { path: 'user', select: 'name email' },
-        })
-        .sort({ date: -1 });
+      appointments = await Appointment.find()
+        .populate('doctor')
+        .populate('patient', 'name email')
+        .sort({ createdAt: -1 });
     }
 
-    res.status(200).json({
-      success: true,
-      data: appointments,
-    });
+    res.status(200).json({ success: true, appointments });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// @desc    Update appointment status
-// @route   PUT /api/v1/appointments/:id/status
-// @access  Private (Doctor)
-exports.updateAppointmentStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-    const appointment = await Appointment.findByIdAndUpdate(
-      req.params.id,
-      { status },
-      { new: true }
-    );
-
-    res.status(200).json({
-      success: true,
-      data: appointment,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// @desc    Add or update prescription / medical notes
-// @route   POST /api/v1/appointments/:id/prescription
-// @access  Private (Doctor)
-exports.addPrescription = async (req, res) => {
-  try {
-    const { diagnosis, notes, medicines } = req.body;
-
-    const appointment = await Appointment.findById(req.params.id);
-    if (!appointment) {
-      return res.status(404).json({ success: false, message: 'Appointment not found' });
-    }
-
-    appointment.prescription = {
-      diagnosis,
-      notes,
-      medicines: medicines || [],
-      updatedAt: new Date(),
-    };
-    appointment.status = 'completed';
-
-    await appointment.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Prescription saved and appointment completed!',
-      data: appointment,
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    console.error('Get appointments error:', error);
+    res.status(500).json({ message: error.message || 'Server error fetching appointments' });
   }
 };
