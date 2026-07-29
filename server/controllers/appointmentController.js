@@ -3,14 +3,6 @@ const Doctor = require('../models/Doctor');
 const User = require('../models/User');
 const axios = require('axios');
 
-// Safe optional require for sendEmail module
-let sendEmail = null;
-try {
-  sendEmail = require('../utils/sendEmail');
-} catch (e) {
-  console.log('sendEmail module not found, continuing without email notifications.');
-}
-
 // @desc    Create new appointment & initialize Paystack
 // @route   POST /api/v1/appointments
 // @access  Private
@@ -22,7 +14,11 @@ exports.createAppointment = async (req, res) => {
       return res.status(400).json({ message: 'Please provide doctorId, date, and timeSlot' });
     }
 
-    // 1. Save appointment in MongoDB
+    // 1. Get user email
+    const userDoc = await User.findById(req.user._id);
+    const userEmail = userDoc?.email || req.user?.email || 'patient@example.com';
+
+    // 2. Create appointment in DB
     const appointment = await Appointment.create({
       patient: req.user._id,
       doctor: doctorId,
@@ -33,37 +29,26 @@ exports.createAppointment = async (req, res) => {
       status: 'pending',
     });
 
-    // 2. Safely attempt Email Notification
-    if (sendEmail && typeof sendEmail === 'function' && req.user?.email) {
-      try {
-        await sendEmail({
-          email: req.user.email,
-          subject: 'Appointment Booking Confirmation',
-          message: `Your appointment for ${date} at ${timeSlot} has been created.`,
-        });
-      } catch (emailErr) {
-        console.error('Email sending failed (non-blocking):', emailErr.message);
-      }
-    }
-
-    // 3. Safely initialize Paystack Payment
+    // 3. Initialize Paystack
     let authorization_url = null;
+    const paystackKey = process.env.PAYSTACK_SECRET_KEY ? process.env.PAYSTACK_SECRET_KEY.trim() : null;
+    const clientUrl = (process.env.CLIENT_URL || 'https://cas-ebon.vercel.app').replace(/\/$/, '');
 
-    if (process.env.PAYSTACK_SECRET_KEY) {
+    if (paystackKey) {
       try {
         const paystackRes = await axios.post(
           'https://api.paystack.co/transaction/initialize',
           {
-            email: req.user.email,
+            email: userEmail,
             amount: 500000, // 5000 NGN in kobo
-            callback_url: `${process.env.CLIENT_URL || 'https://cas-ebon.vercel.app'}/dashboard`,
+            callback_url: `${clientUrl}/dashboard`,
             metadata: {
               appointmentId: appointment._id.toString(),
             },
           },
           {
             headers: {
-              Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY.trim()}`,
+              Authorization: `Bearer ${paystackKey}`,
               'Content-Type': 'application/json',
             },
           }
@@ -73,7 +58,7 @@ exports.createAppointment = async (req, res) => {
           authorization_url = paystackRes.data.data.authorization_url;
         }
       } catch (paystackErr) {
-        console.error('Paystack initialization warning:', paystackErr?.response?.data || paystackErr.message);
+        console.error('Paystack initialization error:', paystackErr?.response?.data || paystackErr.message);
       }
     }
 
@@ -122,7 +107,9 @@ exports.getAppointments = async (req, res) => {
     res.status(200).json({ success: true, appointments });
   } catch (error) {
     console.error('Get appointments error:', error);
-    res.
-    status(500).json({ message: error.message || 'Server error fetching appointments' });
+    res.status(500).json({ message: error.message || 'Server error fetching appointments' });
   }
 };
+
+exports.bookAppointment = exports.createAppointment;
+exports.getMyAppointments = exports.getAppointments;
