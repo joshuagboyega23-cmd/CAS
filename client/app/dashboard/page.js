@@ -33,7 +33,7 @@ export default function DashboardPage() {
     const fetchAppointments = async () => {
       try {
         // Called directly as fetchAPI('/appointments') — NO .get()
-        const res = await fetchAPI('/appointments');
+        const res = await fetchAPI('/appointments/my');
         const list = res?.data?.appointments || res?.appointments || res?.data || res || [];
         setAppointments(Array.isArray(list) ? list : []);
       } catch (err) {
