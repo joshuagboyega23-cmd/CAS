@@ -1,6 +1,6 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
 
-const fetchAPI = async (endpoint, options = {}) => {
+export const fetchAPI = async (endpoint, options = {}) => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
 
   const headers = {
@@ -28,7 +28,7 @@ const fetchAPI = async (endpoint, options = {}) => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
       }
-      throw new Error(data.message || data.error || `Request failed with status ${response.status}`);
+      throw new Error(data.message  data.error  `Request failed with status ${response.status}`);
     }
 
     return data;
