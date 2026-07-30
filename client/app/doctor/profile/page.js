@@ -1,77 +1,63 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAuth } from '../../../context/AuthContext';
-import API from '../../../lib/api';
+import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
+import { fetchAPI } from '@/lib/api';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function DoctorProfilePage() {
-  const { user } = useAuth();
+  const { user, loading } = useAuth();
   const router = useRouter();
 
   const [formData, setFormData] = useState({
     specialization: '',
     qualifications: '',
-    experienceYears: '',
+    experience: '',
     consultationFee: '',
+    availableDays: '',
+    timeSlots: '',
     bio: '',
-    availableDays: 'Monday, Tuesday, Wednesday, Thursday, Friday',
-    timeSlots: '09:00 AM, 10:00 AM, 11:00 AM, 02:00 PM, 03:00 PM',
   });
 
-  const [avatar, setAvatar] = useState('');
-  const [uploading, setUploading] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const { data } = await API.get('/doctors');
-        const myDoc = data.data.find((d) => d.user?._id === user?.id);
-        if (myDoc) {
-          setFormData({
-            specialization: myDoc.specialization || '',
-            qualifications: myDoc.qualifications || '',
-            experienceYears: myDoc.experienceYears || '',
-            consultationFee: myDoc.consultationFee || '',
-            bio: myDoc.bio || '',
-            availableDays: myDoc.availableDays ? myDoc.availableDays.join(', ') : '',
-            timeSlots: myDoc.timeSlots ? myDoc.timeSlots.join(', ') : '',
-          });
-          setAvatar(myDoc.user?.avatar || '');
-        }
-      } catch (err) {
-        console.error('Failed to load profile', err);
-      }
-    };
-
-    if (user && user.role === 'doctor') {
-      fetchProfile();
+    if (!loading && !user) {
+      router.push('/login');
+      return;
     }
-  }, [user]);
 
-  const handleImageUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const uploadData = new FormData();
-    uploadData.append('image', file);
-
-    setUploading(true);
-    try {
-      const { data } = await API.post('/upload', uploadData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setAvatar(data.url);
-      setMessage({ type: 'success', text: 'Image uploaded successfully!' });
-    } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.message || 'Image upload failed' });
-    } finally {
-      setUploading(false);
+    if (user) {
+      // Fetch existing doctor profile if present
+      fetchAPI('/doctors/profile')
+        .then((res) => {
+          const profile = res.data || res;
+          if (profile) {
+            setFormData({
+              specialization: profile.specialization || '',
+              qualifications: profile.qualifications || '',
+              experience: profile.experience || '',
+              consultationFee: profile.consultationFee || profile.fee || '',
+              availableDays: Array.isArray(profile.availableDays)
+                ? profile.availableDays.join(', ')
+                : profile.availableDays || '',
+              timeSlots: Array.isArray(profile.availableSlots || profile.timeSlots)
+                ? (profile.availableSlots || profile.timeSlots).join(', ')
+                : profile.availableSlots || profile.timeSlots || '',
+              bio: profile.bio || '',
+            });
+          }
+        })
+        .catch((err) => {
+          console.log('No existing profile or initial fetch note:', err);
+        })
+        .finally(() => setLoadingProfile(false));
     }
-  };
+  }, [user, loading, router]);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -79,174 +65,165 @@ export default function DoctorProfilePage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
+    setSaving(true);
     setMessage({ type: '', text: '' });
 
-    try {
-      const payload = {
-        ...formData,
-        experienceYears: Number(formData.experienceYears),
-        consultationFee: Number(formData.consultationFee),
-        availableDays: formData.availableDays.split(',').map((d) => d.trim()),
-        timeSlots: formData.timeSlots.split(',').map((t) => t.trim()),
-        avatar,
-      };
+    const payload = {
+      specialization: formData.specialization,
+      qualifications: formData.qualifications,
+      experience: Number(formData.experience) || 0,
+      consultationFee: Number(formData.consultationFee) || 0,
+      fee: Number(formData.consultationFee) || 0,
+      availableDays: formData.availableDays.split(',').map((s) => s.trim()).filter(Boolean),
+      availableSlots: formData.timeSlots.split(',').map((s) => s.trim()).filter(Boolean),
+      timeSlots: formData.timeSlots.split(',').map((s) => s.trim()).filter(Boolean),
+      bio: formData.bio,
+    };
 
-      await API.post('/doctors/profile', payload);
-      setMessage({ type: 'success', text: 'Doctor profile updated successfully!' });
-      setTimeout(() => router.push('/dashboard'), 1500);
-    } catch (err) {
-      setMessage({
-        type: 'error',
-        text: err.response?.data?.message || 'Failed to update doctor profile',
+    try {
+      await fetchAPI('/doctors/profile', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+        headers: {
+          'Content-Type': 'application/json',
+        },
       });
+      setMessage({ type: 'success', text: 'Doctor profile updated successfully!' });
+    } catch (err) {
+      try {
+        await fetchAPI('/doctors/profile', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        setMessage({ type: 'success', text: 'Doctor profile saved successfully!' });
+      } catch (postErr) {
+        setMessage({
+          type: 'error',
+          text: postErr.message || 'Failed to update doctor profile',
+        });
+      }
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  if (user?.role !== 'doctor') {
-    return (
-      <div className="p-8 text-center text-red-600 font-semibold">
-        Access Denied. Only doctor accounts can access this page.
-      </div>
-    );
+  if (loading || loadingProfile) {
+    return <div className="p-8 text-center">Loading profile settings...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6 md:p-10">
-      <div className="max-w-2xl mx-auto bg-white p-8 rounded-xl shadow-md border border-gray-100">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Doctor Profile Settings</h1>
-          <Link href="/dashboard" className="text-blue-600 hover:underline text-sm font-medium">
-            ← Back to Dashboard
-          </Link>
-        </div>
+    <div className="container mx-auto p-6 max-w-2xl">
+      <div className="bg-white p-6 rounded-lg shadow-sm border">
+        <h1 className="text-2xl font-bold mb-6">Doctor Profile Settings</h1>
 
         {message.text && (
           <div
-          className={`p-3 rounded-md mb-4 text-sm ${
-              message.type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+            className={`p-3 rounded mb-4 text-center text-sm ${
+              message.type === 'success'
+                ? 'bg-green-50 text-green-700 border border-green-200'
+                : 'bg-red-50 text-red-600 border border-red-200'
             }`}
           >
             {message.text}
           </div>
         )}
 
-        {/* Profile Image Section */}
-        <div className="mb-6 flex items-center space-x-4">
-          <div className="w-20 h-20 rounded-full bg-gray-200 overflow-hidden flex items-center justify-center border">
-            {avatar ? (
-              <img src={avatar} alt="Profile" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-gray-400 font-bold text-2xl">Dr</span>
-            )}
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Profile Picture</label>
-            <input
-              type="file"
-              accept="image/*"
-              onChange={handleImageUpload}
-              disabled={uploading}
-              className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-            />
-            {uploading && <p className="text-xs text-blue-600 mt-1">Uploading image...</p>}
-          </div>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Specialization</label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium mb-1">Specialization</label>
+            <Input
               name="specialization"
-              placeholder="e.g. Cardiologist, Dermatologist, General Physician"
-              required
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
               value={formData.specialization}
               onChange={handleChange}
+              placeholder="e.g. Cardiologist"
+              required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Qualifications</label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium mb-1">Qualifications</label>
+            <Input
               name="qualifications"
-              placeholder="e.g. MBBS, MD, FWACP"
-              required
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
               value={formData.qualifications}
               onChange={handleChange}
+              placeholder="e.g. MBBS, MD"
+              required
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Experience (Years)</label>
-              <input
+              <label className="block text-sm font-medium mb-1">Experience (Years)</label>
+              <Input
                 type="number"
-                name="experienceYears"
-                required
-                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                value={formData.experienceYears}
+                name="experience"
+                value={formData.experience}
                 onChange={handleChange}
+                placeholder="2"
+                required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Consultation Fee ($)</label>
-              <input
+              <label className="block text-sm font-medium mb-1">Consultation Fee ($)</label>
+              <Input
                 type="number"
                 name="consultationFee"
-                required
-                className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
                 value={formData.consultationFee}
                 onChange={handleChange}
+                placeholder="50"
+                required
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Available Days (comma separated)</label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium mb-1">
+              Available Days (comma separated)
+            </label>
+            <Input
               name="availableDays"
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
               value={formData.availableDays}
               onChange={handleChange}
+              placeholder="Monday, Tuesday, Wednesday"
+              required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Time Slots (comma separated)</label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium mb-1">
+              Time Slots (comma separated)
+            </label>
+            <Input
               name="timeSlots"
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
               value={formData.timeSlots}
               onChange={handleChange}
+              placeholder="09:00 AM, 10:00 AM, 02:00 PM"
+              required
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Bio / About</label>
+            <label className="block text-sm font-medium mb-1">Bio / About</label>
             <textarea
               name="bio"
               rows={3}
-              className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
               value={formData.bio}
               onChange={handleChange}
+              className="w-full p-2 border rounded-md text-sm"
+              placeholder="Brief description about your practice..."
             />
           </div>
 
-          <button
+          <Button
             type="submit"
-            disabled={loading || uploading}
-            className="w-full bg-blue-600 text-white py-2 rounded-md font-medium hover:bg-blue-700 transition disabled:bg-blue-300"
+            disabled={saving}
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white"
           >
-            {loading ? 'Saving Profile...' : 'Save Doctor Profile'}
-          </button>
+            {saving ? 'Saving...' : 'Save Doctor Profile'}
+          </Button>
         </form>
       </div>
     </div>
