@@ -1,148 +1,100 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
-import fetchAPI from '@/lib/api';
+import { useEffect, useState } from 'react';
+import { getMyAppointments } from '@/lib/api';
+import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
 export default function DashboardPage() {
+  const { user, logout, loading } = useAuth();
   const router = useRouter();
-  const [user, setUser] = useState(null);
   const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [fetching, setFetching] = useState(true);
 
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
-    const token = localStorage.getItem('token');
-
-    // If not logged in, send to login
-    if (!token) {
+    if (!loading && !user) {
       router.push('/login');
       return;
     }
 
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-      } catch (e) {
-        console.error('Failed to parse user data');
-      }
+    if (user) {
+      getMyAppointments()
+        .then((res) => setAppointments(res.data || []))
+        .catch((err) => console.error(err))
+        .finally(() => setFetching(false));
     }
+  }, [user, loading, router]);
 
-    const fetchAppointments = async () => {
-      try {
-        // Called directly as fetchAPI('/appointments') — NO .get()
-        const res = await fetchAPI('/appointments/my');
-        const list = res?.data?.appointments || res?.appointments || res?.data || res || [];
-        setAppointments(Array.isArray(list) ? list : []);
-      } catch (err) {
-        console.error('Error fetching appointments:', err);
-        setError(err?.message || 'Failed to load appointments.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAppointments();
-  }, [router]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    router.push('/login');
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <p className="text-gray-600 font-medium">Loading dashboard...</p>
-      </div>
-    );
+  if (loading || fetching) {
+    return <div className="p-8 text-center">Loading dashboard...</div>;
   }
 
+  const isDoctor = user?.role === 'doctor';
+
   return (
-    <div className="min-h-screen bg-slate-50 py-8 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Welcome, {user?.name || 'User'}!
-            </h1>
-            <p className="text-sm text-gray-500 capitalize">
-              Role: <span className="font-semibold text-blue-600">{user?.role || 'Patient'}</span>
-            </p>
-          </div>
-          <div className="flex items-center space-x-3">
-            <Link
-              href="/doctors"
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
-            >
-              Book New Appointment
-            </Link>
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors"
-            >
-              Logout
-            </button>
-          </div>
+    <div className="container mx-auto p-6 max-w-4xl">
+      {/* Header Section */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold">Welcome, {user?.name}!</h1>
+          <p className="text-sm text-gray-500 capitalize">Role: {user?.role}</p>
         </div>
+        
+        <div className="flex gap-3">
+          {isDoctor ? (
+            <Link href="/doctor/profile">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                Edit Doctor Profile
+              </Button>
+            </Link>
+          ) : (
+            <Link href="/doctors">
+              <Button className="bg-blue-600 hover:bg-blue-700 text-white">
+                Book New Appointment
+              </Button>
+            </Link>
+          )}
 
-        {/* Error Message */}
-        {error && (
-          <div className="p-4 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
+          <Button variant="outline" onClick={logout}>
+            Logout
+          </Button>
+        </div>
+      </div>
 
-        {/* Appointments Section */}
-        <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Your Appointments</h2>
+      {/* Appointments Section */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border">
+        <h2 className="text-xl font-semibold mb-4">
+          {isDoctor ? 'Appointments Booked with You' : 'Your Appointments'}
+        </h2>
 
-          {appointments.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 text-sm">
-              No appointments found.{' '}
-              <Link href="/doctors" className="text-blue-600 hover:underline font-medium">
+        {appointments.length === 0 ? (
+          <p className="text-gray-500">
+            No appointments found.{' '}
+            {!isDoctor && (
+              <Link href="/doctors" className="text-blue-600 underline">
                 Book one now
               </Link>
-            </div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {appointments.map((item) => (
-                <div key={item._id || item.id} className="py-4 flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-800">
-                      {item.doctor?.name || item.doctorId?.name || 'Doctor Appointment'}
-                    </p>
-                    <p className="text-sm text-gray-500">
-                      Date: {item.date} | Time: {item.timeSlot || item.time}
-                    </p>
-                    {item.type && (
-                      <span className="inline-block mt-1 px-2.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full">
-                        {item.type}
-                      </span>
-                    )}
-                  </div>
-                  <div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                        item.status === 'confirmed' || item.status === 'paid'
-                          ? 'bg-green-100 text-green-800'
-                          : item.status === 'pending'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {item.status || 'Scheduled'}
-                    </span>
-                  </div>
+            )}
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {appointments.map((apt) => (
+              <div key={apt._id} className="p-4 border rounded-md flex justify-between items-center">
+                <div>
+                  <p className="font-semibold">
+                    {isDoctor ? `Patient: ${apt.user?.name}` : `Doctor: ${apt.doctor?.user?.name || 'Assigned Doctor'}`}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    Date: {new Date(apt.date).toLocaleDateString()} | Slot: {apt.timeSlot}
+                  </p>
+                  <p className="text-xs text-gray-400 capitalize">Status: {apt.status}</p>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
