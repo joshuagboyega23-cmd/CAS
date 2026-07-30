@@ -3,7 +3,7 @@
 import { useAuth } from '@/context/AuthContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { getMyAppointments } from '@/lib/api';
+import { fetchAPI } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 
@@ -20,8 +20,16 @@ export default function DashboardPage() {
     }
 
     if (user) {
-      getMyAppointments()
-        .then((res) => setAppointments(res.data || []))
+      fetchAPI('/appointments/my')
+        .then((res) => {
+          if (Array.isArray(res)) {
+            setAppointments(res);
+          } else if (res && res.data) {
+            setAppointments(res.data);
+          } else {
+            setAppointments([]);
+          }
+        })
         .catch((err) => console.error(err))
         .finally(() => setFetching(false));
     }
