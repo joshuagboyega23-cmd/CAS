@@ -1,74 +1,56 @@
 'use client';
 
 import Link from 'next/link';
-import { useAuth } from '../context/AuthContext';
-import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
 
 export default function Navbar() {
   const { user, logout } = useAuth();
-  const router = useRouter();
-
-  const handleLogout = () => {
-    logout();
-    router.push('/login');
-  };
 
   return (
-    <nav className="bg-white border-b border-slate-200 sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        
-        {/* Brand Logo */}
-        <Link href="/" className="text-xl font-bold text-blue-600 flex items-center gap-2">
-          🏥 <span>ClinicCare</span>
+    <header className="bg-white border-b sticky top-0 z-50">
+      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
+        <Link href="/dashboard" className="text-xl font-bold text-blue-600">
+          ClinicCare
         </Link>
 
-        {/* Navigation Links */}
-        <div className="flex items-center gap-6 text-sm font-medium text-slate-700">
-          <Link href="/doctors" className="hover:text-blue-600 transition-colors">
+        <nav className="flex items-center gap-6">
+          {/* Points to the active doctors list page */}
+          <Link 
+            href="/doctors" 
+            className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+          >
             Doctors
           </Link>
 
-          {user ? (
-            <>
-              {user.role === 'patient' && (
-                <Link href="/patient" className="hover:text-blue-600 transition-colors">
-                  My Dashboard
-                </Link>
-              )}
-              {user.role === 'doctor' && (
-                <Link href="/doctor" className="hover:text-blue-600 transition-colors">
-                  Doctor Schedule
-                </Link>
-              )}
-              {user.role === 'admin' && (
-                <Link href="/admin" className="hover:text-blue-600 transition-colors">
-                  Admin Panel
-                </Link>
-              )}
-
-              <button
-                onClick={handleLogout}
-                className="bg-slate-100 hover:bg-slate-200 text-slate-800 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                Logout ({user.name?.split(' ')[0] || 'User'})
-              </button>
-            </>
-          ) : (
-            <>
-              <Link href="/login" className="hover:text-blue-600 transition-colors">
-                Sign In
-              </Link>
-              <Link
-                href="/register"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-              >
-                Get Started
-              </Link>
-            </>
+          {/* Points to the active Doctor Profile & Schedule settings page */}
+          {user?.role === 'doctor' && (
+            <Link 
+              href="/doctor/profile" 
+              className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
+            >
+              Doctor Schedule
+            </Link>
           )}
-        </div>
 
+          {user ? (
+            <div className="flex items-center gap-3">
+              <Button variant="outline" size="sm" onClick={logout}>
+                Logout ({user.name?.split(' ')[0] || 'User'})
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link href="/login">
+                <Button variant="ghost" size="sm">Sign In</Button>
+              </Link>
+              <Link href="/register">
+                <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">Get Started</Button>
+              </Link>
+            </div>
+          )}
+        </nav>
       </div>
-    </nav>
+    </header>
   );
 }
