@@ -32,7 +32,6 @@ export default function DoctorProfilePage() {
     }
 
     if (user) {
-      // Fetch existing doctor profile if present
       fetchAPI('/doctors/profile')
         .then((res) => {
           const profile = res.data || res;
@@ -40,8 +39,8 @@ export default function DoctorProfilePage() {
             setFormData({
               specialization: profile.specialization || '',
               qualifications: profile.qualifications || '',
-              experience: profile.experience || '',
-              consultationFee: profile.consultationFee || profile.fee || '',
+              experience: profile.experienceYears || profile.experience || '',
+              consultationFee: profile.consultationFee || profile.fees || profile.fee || '',
               availableDays: Array.isArray(profile.availableDays)
                 ? profile.availableDays.join(', ')
                 : profile.availableDays || '',
@@ -53,7 +52,7 @@ export default function DoctorProfilePage() {
           }
         })
         .catch((err) => {
-          console.log('No existing profile or initial fetch note:', err);
+          console.log('No existing profile found yet:', err);
         })
         .finally(() => setLoadingProfile(false));
     }
@@ -68,12 +67,17 @@ export default function DoctorProfilePage() {
     setSaving(true);
     setMessage({ type: '', text: '' });
 
+    const expValue = Number(formData.experience) || 0;
+    const feeValue = Number(formData.consultationFee) || 0;
+
     const payload = {
       specialization: formData.specialization,
       qualifications: formData.qualifications,
-      experience: Number(formData.experience) || 0,
-      consultationFee: Number(formData.consultationFee) || 0,
-      fee: Number(formData.consultationFee) || 0,
+      experienceYears: expValue,
+      experience: expValue,
+      consultationFee: feeValue,
+      fees: feeValue,
+      fee: feeValue,
       availableDays: formData.availableDays.split(',').map((s) => s.trim()).filter(Boolean),
       availableSlots: formData.timeSlots.split(',').map((s) => s.trim()).filter(Boolean),
       timeSlots: formData.timeSlots.split(',').map((s) => s.trim()).filter(Boolean),
@@ -121,7 +125,7 @@ export default function DoctorProfilePage() {
 
         {message.text && (
           <div
-            className={`p-3 rounded mb-4 text-center text-sm ${
+          className={`p-3 rounded mb-4 text-center text-sm ${
               message.type === 'success'
                 ? 'bg-green-50 text-green-700 border border-green-200'
                 : 'bg-red-50 text-red-600 border border-red-200'
