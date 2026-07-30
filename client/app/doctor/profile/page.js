@@ -12,6 +12,7 @@ export default function DoctorProfilePage() {
   const router = useRouter();
 
   const [formData, setFormData] = useState({
+    profilePicture: '',
     specialization: '',
     qualifications: '',
     experience: '',
@@ -37,6 +38,7 @@ export default function DoctorProfilePage() {
           const profile = res.data || res;
           if (profile) {
             setFormData({
+              profilePicture: profile.profilePicture || profile.image || profile.avatar || '',
               specialization: profile.specialization || '',
               qualifications: profile.qualifications || '',
               experience: profile.experienceYears || profile.experience || '',
@@ -71,6 +73,9 @@ export default function DoctorProfilePage() {
     const feeValue = Number(formData.consultationFee) || 0;
 
     const payload = {
+      profilePicture: formData.profilePicture,
+      image: formData.profilePicture,
+      avatar: formData.profilePicture,
       specialization: formData.specialization,
       qualifications: formData.qualifications,
       experienceYears: expValue,
@@ -125,7 +130,7 @@ export default function DoctorProfilePage() {
 
         {message.text && (
           <div
-          className={`p-3 rounded mb-4 text-center text-sm ${
+            className={`p-3 rounded mb-4 text-center text-sm ${
               message.type === 'success'
                 ? 'bg-green-50 text-green-700 border border-green-200'
                 : 'bg-red-50 text-red-600 border border-red-200'
@@ -134,6 +139,36 @@ export default function DoctorProfilePage() {
             {message.text}
           </div>
         )}
+
+        {/* Profile Picture Preview */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-20 h-20 rounded-full bg-blue-100 border flex items-center justify-center text-blue-600 text-xl font-bold overflow-hidden">
+            {formData.profilePicture ? (
+              <img
+                src={formData.profilePicture}
+                alt="Doctor Profile"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
+            ) : (
+              'Dr'
+            )}
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium mb-1">Profile Picture Image URL</label>
+            <Input
+              name="profilePicture"
+              value={formData.profilePicture}
+              onChange={handleChange}
+              placeholder="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d..."
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Paste a direct image web link or leave blank to use avatar initials.
+            </p>
+          </div>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -207,7 +242,7 @@ export default function DoctorProfilePage() {
               placeholder="09:00 AM, 10:00 AM, 02:00 PM"
               required
             />
-          </div>
+            </div>
 
           <div>
             <label className="block text-sm font-medium mb-1">Bio / About</label>
