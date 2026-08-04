@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { apiFetch } from '@/lib/api';
+import { fetchAPI } from '@/lib/api';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,7 @@ export default function DoctorBookingPage() {
   useEffect(() => {
     async function fetchDoctor() {
       try {
-        const data = await apiFetch(`/doctors/${doctorId}`);
+        const data = await fetchAPI(`/doctors/${doctorId}`);
         setDoctor(data.data || data);
       } catch (err) {
         setError(err.message || 'Failed to load doctor details');
@@ -58,7 +58,7 @@ export default function DoctorBookingPage() {
 
     try {
       // 1. Create Appointment
-      const appointmentRes = await apiFetch('/appointments', {
+      const appointmentRes = await fetchAPI('/appointments', {
         method: 'POST',
         body: JSON.stringify({
           doctorId,
@@ -71,7 +71,7 @@ export default function DoctorBookingPage() {
       const appointmentId = appointmentRes.appointment?._id || appointmentRes._id;
 
       // 2. Initialize Paystack Payment
-      const paymentRes = await apiFetch('/payments/initialize', {
+      const paymentRes = await fetchAPI('/payments/initialize', {
         method: 'POST',
         body: JSON.stringify({ appointmentId }),
       });
