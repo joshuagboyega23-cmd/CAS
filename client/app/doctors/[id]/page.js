@@ -2,177 +2,162 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useAuth } from '@/context/AuthContext';
-import { fetchAPI } from '@/lib/api';
+import { apiFetch } from '@/lib/api';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 export default function DoctorBookingPage() {
   const params = useParams();
   const router = useRouter();
-  const { user, loading: authLoading } = useAuth();
+  const doctorId = params.id;
 
   const [doctor, setDoctor] = useState(null);
   const [loading, setLoading] = useState(true);
-
-  const [selectedDate, setSelectedDate] = useState('');
-  const [selectedSlot, setSelectedSlot] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
+  // Form inputs
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedSlot, setSelectedSlot] = useState('');
+  const [reason, setReason] = useState('');
+
+  // Available time slots
+  const availableSlots = [
+    '09:00 AM',
+    '10:00 AM',
+    '11:00 AM',
+    '02:00 PM',
+    '03:00 PM',
+    '04:00 PM',
+  ];
+
   useEffect(() => {
-    if (params?.id) {
-      fetchAPI(`/doctors/${params.id}`)
-        .then((res) => {
-          const docData = res.data || res;
-          setDoctor(docData);
-        })
-        .catch((err) => {
-          console.error('Failed to load doctor:', err);
-          setError('Could not load doctor details.');
-        })
-        .finally(() => setLoading(false));
+    async function fetchDoctor() {
+      try {
+        const data = await apiFetch(`/doctors/${doctorId}`);
+        setDoctor(data.data || data);
+      } catch (err) {
+        setError(err.message || 'Failed to load doctor details');
+      } finally {
+        setLoading(false);
+      }
     }
-  }, [params?.id]);
+    if (doctorId) fetchDoctor();
+  }, [doctorId]);
 
-  const handleBookingAndPayment = async (e) => {
+  const handleBooking = async (e) => {
     e.preventDefault();
-    if (!user) {
-      router.push('/login');
-      return;
-    }
-
     if (!selectedDate || !selectedSlot) {
-      setError('Please select both a date and an available time slot.');
+      setError('Please select both a date and a time slot.');
       return;
     }
 
     setSubmitting(true);
     setError('');
 
-    const feeAmount = Number(doctor?.consultationFee || doctor?.fees || doctor?.fee || 0);
-
-    const payload = {
-      doctorId: doctor._id || doctor.id,
-      doctor: doctor._id || doctor.id,
-      date: selectedDate,
-      timeSlot: selectedSlot,
-      amount: feeAmount,
-      fee: feeAmount,
-      paymentStatus: 'paid',
-      isPaid: true,
-      status: 'confirmed',
-    };
-
     try {
-      await fetchAPI('/appointments', {
+      // 1. Create Appointment
+      const appointmentRes = await apiFetch('/appointments', {
         method: 'POST',
-        body: JSON.stringify(payload),
-        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          doctorId,
+          date: selectedDate,
+          timeSlot: selectedSlot,
+          reason: reason || 'General Consultation',
+        }),
       });
 
-      // Redirect immediately to patient dashboard
-      router.push('/dashboard');
+      const appointmentId = appointmentRes.appointment?._id || appointmentRes._id;
+
+      // 2. Initialize Paystack Payment
+      const paymentRes = await apiFetch('/payments/initialize', {
+        method: 'POST',
+        body: JSON.stringify({ appointmentId }),
+      });
+
+      // 3. Redirect to Paystack Checkout URL
+      const paystackUrl = paymentRes.authorization_url || paymentRes.data?.authorization_url;
+      if (paystackUrl) {
+        window.location.href = paystackUrl;
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err) {
-      console.error('Booking failed:', err);
-      setError(err.message || 'Payment or booking failed. Please try again.');
+      setError(err.message || 'Payment initialization failed.');
+    } finally {
       setSubmitting(false);
     }
   };
 
-  if (loading || authLoading) {
-    return <div className="p-8 text-center">Loading doctor profile...</div>;
-  }
-
-  if (!doctor) {
-    return <div className="p-8 text-center text-red-500">Doctor not found.</div>;
-  }
-
-  const docName = doctor.user?.name || doctor.name || 'Doctor';
-  const imgUrl = doctor.profilePicture || doctor.image || doctor.avatar;
-  const availableSlots = Array.isArray(doctor.availableSlots || doctor.timeSlots)
-    ? doctor.availableSlots || doctor.timeSlots
-    : (doctor.availableSlots || doctor.timeSlots || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (loading) return <div className="p-8 text-center">Loading doctor details...</div>;
+  if (!doctor) return <div className="p-8 text-center text-red-500">Doctor not found.</div>;
 
   return (
-    <div className="container mx-auto p-6 max-w-3xl">
-      <div className="bg-white p-6 rounded-lg shadow-sm border mb-6 flex flex-col md:flex-row items-center gap-6">
-        <div className="w-24 h-24 rounded-full bg-blue-100 border flex items-center justify-center text-blue-600 font-bold text-2xl overflow-hidden shrink-0">
-          {imgUrl ? (
-            <img src={imgUrl} alt={docName} className="w-full h-full object-cover" />
-          ) : (
-            'Dr'
-          )}
-        </div>
-
-        <div className="flex-1 text-center md:text-left">
-          <h1 className="text-2xl font-bold">{docName}</h1>
-          <p className="text-blue-600 font-medium">
-            {doctor.specialization || 'General Practitioner'}
+    <div className="max-w-3xl mx-auto p-6 space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl">{doctor.name}</CardTitle>
+          <p className="text-blue-600 font-semibold">{doctor.specialization}</p>
+          <p className="text-gray-600">Qualifications: {doctor.qualifications || 'MBBS'}</p>
+          <p className="text-gray-800 font-bold mt-2">
+            Consultation Fee: ${doctor.consultationFee || doctor.fee || 5}
           </p>
-          <p className="text-sm text-gray-500 mt-1">
-            Qualifications: {doctor.qualifications || 'N/A'} | Experience:{' '}
-            {doctor.experienceYears || doctor.experience || 0} Years
-          </p>
-          <p className="text-sm text-gray-700 mt-1 font-semibold">
-            Consultation Fee: ${doctor.consultationFee || doctor.fees || doctor.fee || 0}
-          </p>
-        </div>
-      </div>
-      <div className="bg-white p-6 rounded-lg shadow-sm border">
-        <h2 className="text-xl font-semibold mb-4">Book Appointment & Checkout</h2>
+        </CardHeader>
+      </Card>
 
-        {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded text-sm mb-4">
-            {error}
-          </div>
-        )}
+      <Card>
+        <CardHeader>
+          <CardTitle>Book Appointment & Checkout</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
 
-        <form onSubmit={handleBookingAndPayment} className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium mb-1">Select Date</label>
-            <Input
+          <form onSubmit={handleBooking} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-1">Reason for Visit / Consultation</label>
+              <Input
+                type="text"
+                placeholder="e.g., Routine Checkup, Follow-up, Chest Pain"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Select Date</label>
+              <Input
               type="date"
-              value={selectedDate}
-              min={new Date().toISOString().split('T')[0]}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              required
-            />
-          </div>
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                required
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-1">Select Time Slot</label>
-            {availableSlots.length === 0 ? (
-              <p className="text-sm text-gray-500">No active time slots available for this doctor.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {availableSlots.map((slot, idx) => (
-                  <button
-                    key={idx}
+            <div>
+              <label className="block text-sm font-medium mb-2">Select Time Slot</label>
+              <div className="grid grid-cols-3 gap-2">
+                {availableSlots.map((slot) => (
+                  <Button
+                    key={slot}
                     type="button"
+                    variant={selectedSlot === slot ? 'default' : 'outline'}
                     onClick={() => setSelectedSlot(slot)}
-                    className={`px-4 py-2 text-sm rounded-md border transition-colors ${
-                      selectedSlot === slot
-                        ? 'bg-blue-600 text-white border-blue-600 font-semibold'
-                        : 'bg-white text-gray-700 hover:bg-gray-50'
-                    }`}
+                    className="w-full"
                   >
                     {slot}
-                  </button>
+                  </Button>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
 
-          <Button
-            type="submit"
-            disabled={submitting}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 mt-4"
-          >
-            {submitting ? 'Processing Payment...' : `Pay $${doctor.consultationFee || doctor.fees || doctor.fee || 0} & Confirm Booking`}
-          </Button>
-        </form>
-      </div>
+            <Button type="submit" className="w-full mt-4" disabled={submitting}>
+              {submitting ? 'Redirecting to Paystack...' : `Pay $${doctor.consultationFee || 5} & Confirm Booking`}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
     </div>
   );
 }
