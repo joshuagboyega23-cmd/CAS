@@ -22,7 +22,7 @@ const appointmentSchema = new mongoose.Schema(
     },
     reason: {
       type: String,
-      required: true,
+      default : 'General Consultation ',
     },
     status: {
       type: String,
