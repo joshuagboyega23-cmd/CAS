@@ -36,24 +36,7 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col justify-between">
-      {/* 1. Navigation Header */}
-      <header className="border-b bg-white sticky top-0 z-40">
-        <div className="container mx-auto px-6 h-16 max-w-6xl flex items-center justify-between">
-          <Link href="/" className="text-xl font-bold text-blue-600">
-            ClinicCare
-          </Link>
-          <div className="flex items-center gap-3">
-            <Link href="/login">
-              <Button variant="ghost" size="sm">Sign In</Button>
-            </Link>
-            <Link href="/register">
-              <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white">Register</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {/* 2. Hero Section */}
+      {/* 1. Hero Section */}
       <section className="py-16 md:py-24 text-center px-6">
         <div className="max-w-3xl mx-auto space-y-6">
           <h1 className="text-4xl md:text-5xl font-extrabold text-gray-900 tracking-tight">
@@ -82,7 +65,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* 3. Featured Doctors Section */}
+      {/* 2. Featured Doctors Section */}
       {featuredDoctors.length > 0 && (
         <section className="bg-blue-50/50 py-16 md:py-20 border-t border-gray-100">
           <div className="container mx-auto px-6 max-w-6xl">
@@ -139,7 +122,7 @@ export default function LandingPage() {
         </section>
       )}
 
-      {/* 4. Footer */}
+      {/* 3. Footer */}
       <footer className="bg-gray-900 text-gray-400 py-12 border-t border-gray-800">
         <div className="container mx-auto px-6 max-w-6xl grid grid-cols-1 md:grid-cols-4 gap-8 mb-8 text-sm">
           <div className="space-y-3">
@@ -184,13 +167,13 @@ export default function LandingPage() {
         </div>
       </footer>
 
-      {/* 5. Auth Guard Modal */}
+      {/* 4. Auth Guard Modal */}
       {showAuthModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
           <div className="bg-white p-6 rounded-xl max-w-sm w-full space-y-4 text-center shadow-2xl">
             <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
               🔒
-              </div>
+            </div>
             <div>
               <h3 className="text-lg font-bold text-gray-900">Sign In Required</h3>
               <p className="text-gray-500 text-xs mt-1">
