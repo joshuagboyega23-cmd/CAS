@@ -21,7 +21,7 @@ exports.initializePayment = async (req, res) => {
       {
         email: appointment.patient.email,
         amount: amountInKobo,
-        callback_url: `${process.env.CLIENT_URL || 'http://localhost:3000'}/dashboard`,
+        callback_url: `${process.env.CLIENT_URL || 'https://cas-ebon.vercel.app'}/dashboard`,
         metadata: {
           appointmentId: appointment._id.toString(),
         },
