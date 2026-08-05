@@ -15,14 +15,6 @@ export default function Navbar() {
         </Link>
 
         <nav className="flex items-center gap-6">
-          {/* Points to the active doctors list page */}
-          <Link 
-            href="/doctors" 
-            className="text-sm font-medium text-gray-700 hover:text-blue-600 transition-colors"
-          >
-            Doctors
-          </Link>
-
           {/* Points to the active Doctor Profile & Schedule settings page */}
           {user?.role === 'doctor' && (
             <Link 
