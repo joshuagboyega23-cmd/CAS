@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { fetchAPI } from '@/lib/api';
@@ -8,7 +8,7 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
-export default function DashboardPage() {
+function DashboardContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const reference = searchParams.get('reference');
@@ -32,7 +32,6 @@ export default function DashboardPage() {
           try {
             await fetchAPI(`/payments/verify/${reference}`);
             setMessage('Payment verified successfully! Your appointment is confirmed.');
-            // Clean URL query params without full page refresh
             router.replace('/dashboard');
           } catch (err) {
             console.error('Payment verification failed:', err);
@@ -109,10 +108,11 @@ export default function DashboardPage() {
                 >
                   <div className="space-y-1">
                     <p className="font-bold text-lg">
-                      {appt.doctor?.name ? `Dr. ${appt.doctor.name}` : 'Doctor Appointment'}`
+                      {appt.doctor?.name ? `Dr. ${appt.doctor.name}` : 'Doctor Appointment'}
                     </p>
                     <p className="text-sm text-gray-600">
-                      <strong>Specialization:</strong> {appt.doctor?.specialization || 'General Care'}
+                      <strong>Specialization:</strong> {appt.doctor?.
+                      specialization || 'General Care'}
                     </p>
                     <p className="text-sm text-gray-600">
                       <strong>Reason:</strong> {appt.reason || 'Consultation'}
@@ -137,5 +137,13 @@ export default function DashboardPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center">Loading dashboard...</div>}>
+      <DashboardContent />
+    </Suspense>
   );
 }
