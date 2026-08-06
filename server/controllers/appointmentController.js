@@ -89,7 +89,7 @@ exports.getAppointments = async (req, res) => {
         return res.status(200).json({ success: true, appointments: [] });
       }
       appointments = await Appointment.find({ doctor: doctorProfile._id })
-        .populate('patient', 'name email')
+        .populate('patient', 'name email phone')
         .populate('doctor')
         .sort({ createdAt: -1 });
     } else {
@@ -111,13 +111,12 @@ exports.getAppointments = async (req, res) => {
 // @access  Private
 exports.getAppointmentById = async (req, res) => {
   try {
-    // If parameter is not a 24-character ObjectId (e.g. "my-appointments"), return all appointments
     if (!req.params.id || req.params.id.length !== 24) {
       return exports.getAppointments(req, res);
     }
 
     const appointment = await Appointment.findById(req.params.id)
-    .populate('doctor')
+      .populate('doctor')
       .populate('patient', 'name email');
 
     if (!appointment) {
@@ -192,8 +191,57 @@ exports.deleteAppointment = async (req, res) => {
   }
 };
 
+// @desc    Get doctor-specific appointments & unread notification count
+// @route   GET /api/v1/appointments/doctor/my-appointments
+// @access  Private (Doctor)
+exports.getDoctorAppointments = async (req, res) => {
+  try {
+    const doctorProfile = await Doctor.findOne({ user: req.user._id });
+    if (!doctorProfile) {
+      return res.status(404).json({ message: 'Doctor profile not found' });
+    }
+
+    const appointments = await Appointment.find({ doctor: doctorProfile._id })
+      .populate('patient', 'name email phone')
+      .sort({ createdAt: -1 });
+
+    const unreadCount = await Appointment.countDocuments({
+      doctor: doctorProfile._id,
+      isReadByDoctor: { $ne: true }
+    });
+
+    res.status(200).json({ success: true, appointments, unreadCount });
+  } catch (error) {
+    console.error('Get doctor appointments error:', error);
+    res.status(500).json({ message: error.message || 'Server error fetching doctor appointments' });
+  }
+};
+
+// @desc    Mark doctor notifications as read
+// @route   PUT /api/v1/appointments/doctor/mark-read
+// @access  Private (Doctor)
+exports.markNotificationsRead = async (req, res) => {
+  try {
+    const doctorProfile = await Doctor.findOne({ user: req.user._id });
+    if (!doctorProfile) {
+      return res.status(404).json({ message: 'Doctor profile not found' });
+    }
+
+    await Appointment.updateMany(
+      { doctor: doctorProfile._id, isReadByDoctor: { $ne: true } },
+      { $set: { isReadByDoctor: true } }
+    );
+
+    res.status(200).json({ success: true, message: 'Notifications marked as read' });
+  } catch (error) {
+    console.error('Mark notifications read error:', error);
+    res.status(500).json({ message: error.message || 'Server error updating notifications' });
+  }
+};
+
 // Aliases for compatibility
-exports.bookAppointment = exports.createAppointment;
+exports.bookAppointment = exports.
+createAppointment;
 exports.getMyAppointments = exports.getAppointments;
 exports.getAppointment = exports.getAppointmentById;
 exports.updateAppointment = exports.updateAppointmentStatus;

@@ -1,40 +1,31 @@
 const express = require('express');
 const router = express.Router();
-const appointmentController = require('../controllers/appointmentController');
+const { protect } = require('../middleware/authMiddleware');
+const {
+  createAppointment,
+  getAppointments,
+  getAppointmentById,
+  updateAppointmentStatus,
+  cancelAppointment,
+  deleteAppointment,
+  getDoctorAppointments,
+  markNotificationsRead
+} = require('../controllers/appointmentController');
 
-let protect = (req, res, next) => next();
-try {
-  let authModule;
-  try {
-    authModule = require('../middleware/authMiddleware');
-  } catch (err) {
-    try {
-      authModule = require('../middleware/auth');
-    } catch (e) {
-      authModule = null;
-    }
-  }
+// Doctor notification and specific schedule routes
+router.get('/doctor/my-appointments', protect, getDoctorAppointments);
+router.put('/doctor/mark-read', protect, markNotificationsRead);
 
-  if (authModule) {
-    if (typeof authModule.protect === 'function') {
-      protect = authModule.protect;
-    } else if (typeof authModule === 'function') {
-      protect = authModule;
-    }
-  }
-} catch (e) {
-  console.warn('Auth middleware fallback active:', e.message);
-}
-
+// Standard appointment CRUD routes
 router.route('/')
-  .post(protect, appointmentController.createAppointment)
-  .get(protect, appointmentController.getAppointments);
+  .post(protect, createAppointment)
+  .get(protect, getAppointments);
 
 router.route('/:id')
-  .get(protect, appointmentController.getAppointmentById)
-  .put(protect, appointmentController.updateAppointmentStatus)
-  .delete(protect, appointmentController.deleteAppointment);
+  .get(protect, getAppointmentById)
+  .put(protect, updateAppointmentStatus)
+  .delete(protect, deleteAppointment);
 
-router.put('/:id/cancel', protect, appointmentController.cancelAppointment);
+router.put('/:id/cancel', protect, cancelAppointment);
 
 module.exports = router;
